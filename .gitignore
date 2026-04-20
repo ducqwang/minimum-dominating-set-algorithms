@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environment
+.venv/
+venv/
+env/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# Kết quả sinh ra khi chạy (commit để team dùng chung)
+# results/raw/
+# results/plots/
+# results/comparison/
+# data/test_graphs.json
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
