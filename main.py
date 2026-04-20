@@ -24,10 +24,10 @@ if sys.stdout.encoding != "utf-8":
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
-from greedy import greedy_mds
-from brute_force import brute_force_mds
-from branch_bound import branch_bound_mds
-from aco import aco_mds
+from src.greedy import greedy_mds
+from src.brute_force import brute_force_mds
+from src.branch_bound import branch_bound_mds
+from src.aco import aco_mds
 
 BASE = os.path.dirname(__file__)
 
