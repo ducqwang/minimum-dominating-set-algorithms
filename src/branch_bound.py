@@ -16,6 +16,11 @@ Kết quả: chính xác (optimal)
 
 import math
 
+try:
+    from .greedy import greedy_mds
+except ImportError:
+    from greedy import greedy_mds
+
 
 def branch_bound_mds(adj):
     """
@@ -34,7 +39,8 @@ def branch_bound_mds(adj):
     # Phủ tối đa của một đỉnh = bậc + 1 (bản thân + hàng xóm)
     max_cover = max(len(adj[v]) + 1 for v in range(n))
 
-    best = [None]  # best[0] = tập thống trị tốt nhất tìm được
+    # Dùng nghiệm tham lam làm cận trên ban đầu để cắt nhánh sớm hơn.
+    best = [list(greedy_mds(adj))]  # best[0] = tập thống trị tốt nhất tìm được
 
     def lower_bound(dominated):
         """Cận dưới: số đỉnh còn chưa phủ / phủ tối đa mỗi lần."""

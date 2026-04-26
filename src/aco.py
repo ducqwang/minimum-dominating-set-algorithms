@@ -4,7 +4,8 @@ cho bài toán Tập Thống Trị Tối Thiểu.
 
 Ý tưởng:
   - Mỗi "kiến" xây dựng một lời giải bằng cách lần lượt chọn đỉnh
-    theo xác suất dựa trên pheromone (τ) và heuristic (η = bậc + 1).
+    theo xác suất dựa trên pheromone (τ) và heuristic động
+    (η = số đỉnh mới được phủ nếu chọn đỉnh đó).
   - Sau khi xây xong, áp dụng local search để loại bỏ đỉnh dư thừa.
   - Pheromone được cập nhật: bốc hơi (evaporation) + bồi đắp từ các
     lời giải tốt trong mỗi vòng lặp.
@@ -13,7 +14,7 @@ Công thức chọn đỉnh v:
     P(v) = τ(v)^α × η(v)^β  /  Σ τ(u)^α × η(u)^β
 
 Độ phức tạp: O(iterations × ants × n²)
-Kết quả: xấp xỉ tối ưu, chất lượng tốt hơn tham lam
+Kết quả: xấp xỉ tối ưu, chất lượng phụ thuộc tham số và dữ liệu
 """
 
 import random
@@ -28,24 +29,20 @@ def aco_mds(adj, n_ants=20, n_iterations=50, alpha=1.0, beta=2.0, rho=0.1, seed=
         n_ants      : số kiến mỗi vòng lặp
         n_iterations: số vòng lặp
         alpha       : trọng số pheromone
-        beta        : trọng số heuristic (bậc đỉnh)
+        beta        : trọng số heuristic (số đỉnh mới được phủ)
         rho         : tốc độ bốc hơi pheromone (0 < rho < 1)
         seed        : random seed để tái tạo kết quả
 
     Trả về:
         set các đỉnh trong tập thống trị tìm được
     """
-    if seed is not None:
-        random.seed(seed)
+    rng = random.Random(seed)
 
     n = len(adj)
     if n == 0:
         return set()
 
     pheromone = [1.0] * n  # khởi tạo pheromone đều nhau
-
-    def heuristic(v):
-        return len(adj[v]) + 1  # bậc + 1: đỉnh bậc cao phủ nhiều hơn
 
     def construct_solution():
         """Một kiến xây dựng một lời giải."""
@@ -59,7 +56,7 @@ def aco_mds(adj, n_ants=20, n_iterations=50, alpha=1.0, beta=2.0, rho=0.1, seed=
                 if v not in domset:
                     gain = len((adj[v] | {v}) - dominated)
                     if gain > 0:
-                        p = (pheromone[v] ** alpha) * (heuristic(v) ** beta)
+                        p = (pheromone[v] ** alpha) * (gain ** beta)
                         probs.append((v, p))
 
             if not probs:
@@ -71,7 +68,7 @@ def aco_mds(adj, n_ants=20, n_iterations=50, alpha=1.0, beta=2.0, rho=0.1, seed=
 
             # Roulette wheel selection
             total = sum(p for _, p in probs)
-            r = random.uniform(0, total)
+            r = rng.uniform(0, total)
             cumsum = 0.0
             chosen = probs[-1][0]
             for v, p in probs:

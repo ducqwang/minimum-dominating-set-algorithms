@@ -6,7 +6,7 @@ Chạy: python main.py
 
 Kết quả được lưu tự động vào:
   data/test_graphs.json          – các đồ thị test
-  results/raw/results.csv        – số liệu thô (n, thuật toán, thời gian, kích thước)
+  results/raw/results.csv        – số liệu thô (n, p, seed, thuật toán, thời gian, kích thước, gap)
   results/comparison/summary.txt – bảng so sánh dạng text
   results/plots/time_comparison.png  – biểu đồ thời gian
   results/plots/size_comparison.png  – biểu đồ kích thước nghiệm
@@ -17,7 +17,6 @@ import os
 import time
 import random
 import csv
-import json
 
 if sys.stdout.encoding != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8")
@@ -42,10 +41,10 @@ def make_graph(n, edges):
     return adj
 
 
-def random_graph(n, edge_prob=0.3, seed=42):
-    random.seed(seed)
+def random_graph(n, edge_prob=0.3, seed=0):
+    rng = random.Random(seed)
     edges = [(i, j) for i in range(n) for j in range(i + 1, n)
-             if random.random() < edge_prob]
+             if rng.random() < edge_prob]
     return make_graph(n, edges)
 
 
@@ -78,6 +77,10 @@ def run_algo(func, adj, skip=False):
     return result, time.perf_counter() - start
 
 
+def mean(values):
+    return sum(values) / len(values) if values else None
+
+
 
 # Bước 1 – Chạy toàn bộ benchmark, thu thập dữ liệu
 
@@ -88,16 +91,11 @@ ALGO_DEFS = [
     ("ACO",       lambda g: aco_mds(g, n_ants=20, n_iterations=60, seed=0)),
 ]
 
-TEST_CASES = [
-    # (n,  run_brute, run_bb)
-    (8,   True,  True),
-    (12,  True,  True),
-    (16,  True,  True),
-    (20,  False, True),
-    (30,  False, True),
-    (50,  False, False),
-    (100, False, False),
-]
+N_VALUES = [8, 12, 16, 20, 30, 50, 100]
+EDGE_PROBS = [0.05, 0.10, 0.30, 0.50]
+SEEDS = [0, 1, 2]
+GRAPH_EXPORT_SEED = 0
+EXACT_ALGOS = {"Vét cạn", "Nhánh cận"}
 
 SKIP_MAP = {
     "Vét cạn":   lambda n: n > 16,
@@ -111,35 +109,72 @@ def run_benchmark():
     """
     Chạy tất cả thuật toán trên tất cả test case.
     Trả về (records, test_graphs).
-      records: list of dict {n, algo, time, size, valid}
-      test_graphs: dict {n: adj}
+      records: list of dict {n, edge_prob, seed, algo, time, size, valid, opt_size, gap}
+      test_graphs: list các đồ thị đại diện được lưu ra file
     """
     records = []
-    test_graphs = {}
+    test_graphs = []
 
-    for n, _, _ in TEST_CASES:
-        adj = random_graph(n, edge_prob=0.3, seed=42)
-        test_graphs[n] = adj
-        print(f"  n={n:>3} ...", end=" ")
+    for edge_prob in EDGE_PROBS:
+        print(f"  edge_prob={edge_prob:.2f}")
 
-        for algo_name, func in ALGO_DEFS:
-            skip = SKIP_MAP[algo_name](n)
-            result, elapsed = run_algo(func, adj, skip=skip)
+        for n in N_VALUES:
+            print(f"    n={n:>3} ...", end=" ")
 
-            if result is not None:
-                valid = is_valid_domset(result, adj)
-                records.append({
-                    "n":     n,
-                    "algo":  algo_name,
-                    "time":  elapsed,
-                    "size":  len(result),
-                    "valid": valid,
-                })
-                print(f"{algo_name}={len(result)}", end=" ")
-            else:
-                print(f"{algo_name}=—", end=" ")
+            for seed in SEEDS:
+                adj = random_graph(n, edge_prob=edge_prob, seed=seed)
+                if seed == GRAPH_EXPORT_SEED:
+                    test_graphs.append({
+                        "n": n,
+                        "edge_prob": edge_prob,
+                        "seed": seed,
+                        "adj": adj,
+                    })
 
-        print()
+                graph_records = []
+                for algo_name, func in ALGO_DEFS:
+                    skip = SKIP_MAP[algo_name](n)
+                    result, elapsed = run_algo(func, adj, skip=skip)
+
+                    if result is not None:
+                        graph_records.append({
+                            "n":         n,
+                            "edge_prob": edge_prob,
+                            "seed":      seed,
+                            "algo":      algo_name,
+                            "time":      elapsed,
+                            "size":      len(result),
+                            "valid":     is_valid_domset(result, adj),
+                            "opt_size":  None,
+                            "gap":       None,
+                        })
+
+                opt_candidates = [
+                    r["size"] for r in graph_records
+                    if r["algo"] in EXACT_ALGOS and r["valid"]
+                ]
+                opt_size = min(opt_candidates) if opt_candidates else None
+
+                for rec in graph_records:
+                    rec["opt_size"] = opt_size
+                    rec["gap"] = rec["size"] - opt_size if opt_size is not None else None
+                    records.append(rec)
+
+            for algo_name, _ in ALGO_DEFS:
+                samples = [
+                    r for r in records
+                    if r["edge_prob"] == edge_prob and r["n"] == n and r["algo"] == algo_name
+                ]
+                if not samples:
+                    print(f"{algo_name}=—", end=" ")
+                    continue
+
+                avg_size = mean([r["size"] for r in samples])
+                gaps = [r["gap"] for r in samples if r["gap"] is not None]
+                gap_text = f", gap={mean(gaps):+.2f}" if gaps else ""
+                print(f"{algo_name}=|{avg_size:.2f}|{gap_text}", end=" ")
+
+            print()
 
     return records, test_graphs
 
@@ -151,14 +186,21 @@ def save_graphs(test_graphs):
     """Lưu danh sách cạnh của mỗi đồ thị test vào data/test_graphs.json."""
     path = os.path.join(BASE, "data", "test_graphs.json")
     # Format thủ công để mỗi edge [u, v] nằm compact trên 1 dòng
-    items = sorted(test_graphs.items())
+    items = sorted(test_graphs, key=lambda g: (g["edge_prob"], g["seed"], g["n"]))
     lines = ["{"]
-    for i, (n, adj) in enumerate(items):
+    for i, graph in enumerate(items):
+        n = graph["n"]
+        edge_prob = graph["edge_prob"]
+        seed = graph["seed"]
+        adj = graph["adj"]
+        key = f"p={edge_prob:.2f}_seed={seed}_n={n}"
         edges = graph_to_edgelist(adj)
         edges_str = ", ".join(f"[{u}, {v}]" for u, v in edges)
         comma = "," if i < len(items) - 1 else ""
-        lines.append(f'  "{n}": {{')
+        lines.append(f'  "{key}": {{')
         lines.append(f'    "n": {n},')
+        lines.append(f'    "edge_prob": {edge_prob:.2f},')
+        lines.append(f'    "seed": {seed},')
         lines.append(f'    "edges": [{edges_str}]')
         lines.append(f'  }}{comma}')
     lines.append("}")
@@ -170,50 +212,87 @@ def save_graphs(test_graphs):
 def save_raw_csv(records):
     """Lưu số liệu thô vào results/raw/results.csv."""
     path = os.path.join(BASE, "results", "raw", "results.csv")
+    fieldnames = ["n", "edge_prob", "seed", "algo", "time", "size", "valid", "opt_size", "gap"]
     with open(path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["n", "algo", "time", "size", "valid"])
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
-        writer.writerows(records)
+        for record in records:
+            row = record.copy()
+            if row["opt_size"] is None:
+                row["opt_size"] = ""
+            if row["gap"] is None:
+                row["gap"] = ""
+            writer.writerow(row)
     print(f"  Đã lưu: results/raw/results.csv")
+
+
+def summarize_records(records, group_fields):
+    """Tính trung bình thời gian, kích thước nghiệm và gap theo nhóm."""
+    groups = {}
+    for record in records:
+        key = tuple(record[field] for field in group_fields)
+        groups.setdefault(key, []).append(record)
+
+    summaries = []
+    for key, items in sorted(groups.items()):
+        summary = dict(zip(group_fields, key))
+        gaps = [item["gap"] for item in items if item["gap"] is not None]
+        opt_sizes = [item["opt_size"] for item in items if item["opt_size"] is not None]
+        summary.update({
+            "runs":     len(items),
+            "time":     mean([item["time"] for item in items]),
+            "size":     mean([item["size"] for item in items]),
+            "valid":    all(item["valid"] for item in items),
+            "opt_size": mean(opt_sizes) if opt_sizes else None,
+            "gap":      mean(gaps) if gaps else None,
+        })
+        summaries.append(summary)
+    return summaries
 
 
 def save_comparison_table(records):
     """Lưu bảng so sánh dạng text vào results/comparison/summary.txt."""
     path = os.path.join(BASE, "results", "comparison", "summary.txt")
 
-    # Nhóm theo n
+    summaries = summarize_records(records, ("edge_prob", "n", "algo"))
     ns = sorted({r["n"] for r in records})
     algos = [a for a, _ in ALGO_DEFS]
 
-    col_w = 20
-    header = f"{'n':>4}  " + "".join(f"{a:<{col_w}}" for a in algos)
+    col_w = 38
+    header = f"{'p':>5}  {'n':>4}  " + "".join(f"{a:<{col_w}}" for a in algos)
     sep = "-" * len(header)
 
     lines = [
         "BÀI TOÁN TẬP THỐNG TRỊ TỐI THIỂU – KẾT QUẢ SO SÁNH",
-        "(đồ thị ngẫu nhiên, edge_prob=0.3, seed=42)\n",
-        "Ký hiệu: thời_gian / kích_thước  (— = không chạy)\n",
+        f"(đồ thị ngẫu nhiên, p={EDGE_PROBS}, seed={SEEDS})\n",
+        "Ký hiệu: thời_gian_tb / |D|_tb / gap_tb  (— = không chạy; gap = |D|-OPT)\n",
         header, sep,
     ]
 
-    for n in ns:
-        row_parts = [f"{n:>4}  "]
-        for algo in algos:
-            match = next((r for r in records if r["n"] == n and r["algo"] == algo), None)
-            if match:
-                cell = f"{match['time']:.4f}s / |{match['size']}|"
-            else:
-                cell = "—"
-            row_parts.append(f"{cell:<{col_w}}")
-        lines.append("".join(row_parts))
+    for edge_prob in EDGE_PROBS:
+        for n in ns:
+            row_parts = [f"{edge_prob:>5.2f}  {n:>4}  "]
+            for algo in algos:
+                match = next((
+                    r for r in summaries
+                    if r["edge_prob"] == edge_prob and r["n"] == n and r["algo"] == algo
+                ), None)
+                if match:
+                    gap_text = f" / gap={match['gap']:+.2f}" if match["gap"] is not None else ""
+                    valid_text = "" if match["valid"] else " / SAI"
+                    cell = f"{match['time'] * 1000:.2f}ms / |{match['size']:.2f}|{gap_text}{valid_text}"
+                else:
+                    cell = "—"
+                row_parts.append(f"{cell:<{col_w}}")
+            lines.append("".join(row_parts))
+        lines.append(sep)
 
     lines += [
-        sep,
         "\nKẾT LUẬN:",
-        "  Vét cạn  : chính xác, chỉ dùng n <= 16",
-        "  Nhánh cận: chính xác, dùng được n <= 30",
-        "  Tham lam : nhanh nhất, kết quả xấp xỉ",
-        "  ACO      : tốt hơn tham lam, chậm hơn nhưng dùng được n lớn",
+        "  Vét cạn  : chính xác, chỉ dùng cho n nhỏ vì tăng theo 2^n",
+        "  Nhánh cận: chính xác, thường nhanh hơn vét cạn nhờ cắt nhánh",
+        "  Tham lam : rất nhanh, nghiệm xấp xỉ và không luôn tối ưu",
+        "  ACO      : có thể cải thiện nghiệm tham lam ở một số trường hợp, nhưng chậm hơn",
     ]
 
     content = "\n".join(lines)
@@ -253,12 +332,13 @@ def plot_results(records):
 
     algos = [a for a, _ in ALGO_DEFS]
 
-    # Nhóm dữ liệu theo (algo, n)
+    # Nhóm dữ liệu trung bình theo (algo, n), gộp tất cả p và seed
+    summaries = summarize_records(records, ("n", "algo"))
     data = {a: {} for a in algos}
-    for r in records:
+    for r in summaries:
         data[r["algo"]][r["n"]] = r
 
-    all_ns = sorted({r["n"] for r in records})
+    all_ns = sorted({r["n"] for r in summaries})
 
     # --- Biểu đồ 1: Thời gian thực thi ---
     fig, ax = plt.subplots(figsize=(8, 5))
@@ -276,7 +356,7 @@ def plot_results(records):
     ax.set_yscale("log")
     ax.set_xlabel("Số đỉnh n")
     ax.set_ylabel("Thời gian (giây, thang log)")
-    ax.set_title("So sánh thời gian thực thi\n(Minimum Dominating Set)")
+    ax.set_title("So sánh thời gian thực thi trung bình\n(Minimum Dominating Set)")
     ax.legend()
     ax.grid(True, which="both", linestyle="--", alpha=0.5)
     ax.set_xticks(all_ns)
@@ -312,7 +392,7 @@ def plot_results(records):
 
     ax.set_xlabel("Số đỉnh n")
     ax.set_ylabel("Kích thước tập thống trị |D|")
-    ax.set_title("So sánh chất lượng nghiệm\n(Minimum Dominating Set)")
+    ax.set_title("So sánh chất lượng nghiệm trung bình\n(Minimum Dominating Set)")
     ax.legend()
     ax.grid(True, linestyle="--", alpha=0.5)
     ax.set_xticks(all_ns)
@@ -338,22 +418,35 @@ def print_table(headers, rows):
 
 
 def print_benchmark_table(records):
+    summaries = summarize_records(records, ("edge_prob", "n", "algo"))
     ns = sorted({r["n"] for r in records})
     algos = [a for a, _ in ALGO_DEFS]
-    data = {(r["n"], r["algo"]): r for r in records}
 
-    headers = ["n"] + algos
-    rows = []
-    for n in ns:
-        row = [str(n)]
-        for algo in algos:
-            rec = data.get((n, algo))
-            row.append(f"{rec['time']:.3f}s |{rec['size']}|" if rec else "—")
-        rows.append(row)
+    for edge_prob in EDGE_PROBS:
+        data = {
+            (r["n"], r["algo"]): r for r in summaries
+            if r["edge_prob"] == edge_prob
+        }
 
-    print_table(headers, rows)
+        print(f"  edge_prob = {edge_prob:.2f}")
+        headers = ["n"] + algos
+        rows = []
+        for n in ns:
+            row = [str(n)]
+            for algo in algos:
+                rec = data.get((n, algo))
+                if rec:
+                    gap_text = f" g{rec['gap']:+.2f}" if rec["gap"] is not None else ""
+                    row.append(f"{rec['time'] * 1000:.2f}ms |{rec['size']:.2f}|{gap_text}")
+                else:
+                    row.append("—")
+            rows.append(row)
+
+        print_table(headers, rows)
+        print()
+
     print()
-    print("  Chú thích: thời_gian  |kích_thước_D|")
+    print("  Chú thích: thời_gian_tb  |kích_thước_D_tb|  gap_tb")
 
 
 def print_small_demo():
@@ -397,23 +490,22 @@ def print_summary():
   ┌──────────────┬────────────────┬──────────┬──────────────────────────────────────┐
   │ Thuật toán   │ Độ phức tạp    │ Tối ưu?  │ Nhận xét                             │
   ├──────────────┼────────────────┼──────────┼──────────────────────────────────────┤
-  │ Vét cạn      │ O(2^n · n)     │ Có       │ Đúng hoàn toàn, chỉ dùng n ≤ 16     │
+  │ Vét cạn      │ O(2^n · n)     │ Có       │ Đúng hoàn toàn, chỉ dùng n nhỏ      │
   ├──────────────┼────────────────┼──────────┼──────────────────────────────────────┤
   │ Nhánh cận    │ O(2^n) w.case  │ Có       │ Đúng, nhanh hơn nhờ cắt nhánh        │
-  │              │ (nhanh hơn     │          │ Dùng được n ≤ 30                     │
-  │              │  thực tế)      │          │                                      │
+  │              │                │          │ Hiệu quả phụ thuộc cấu trúc đồ thị   │
   ├──────────────┼────────────────┼──────────┼──────────────────────────────────────┤
-  │ Tham lam     │ O(n²)          │ Không    │ Nhanh nhất, xấp xỉ ≤ (ln Δ+1)·OPT  │
-  │              │                │          │ Luôn chạy được dù n lớn              │
+  │ Tham lam     │ O(n(n+m))      │ Không    │ Nhanh, xấp xỉ H(Δ+1)·OPT            │
+  │              │                │          │ Không đảm bảo tối ưu                 │
   ├──────────────┼────────────────┼──────────┼──────────────────────────────────────┤
-  │ ACO          │ O(iter·ant·n²) │ Không    │ Tốt hơn tham lam nhờ local search;  │
-  │              │                │          │ chậm hơn, dùng được n lớn            │
+  │ ACO          │ O(iter·ant·n²) │ Không    │ Có thể cho nghiệm tốt hơn tham lam; │
+  │              │                │          │ đổi lại thời gian chạy lớn hơn       │
   └──────────────┴────────────────┴──────────┴──────────────────────────────────────┘
 
   Khi nào dùng thuật toán nào?
     n ≤ 16        →  Vét cạn   (chắc chắn tối ưu, đơn giản nhất)
     16 < n ≤ 30   →  Nhánh cận (vẫn tối ưu, đủ nhanh)
-    n > 30        →  Tham lam  (rất nhanh) hoặc ACO (nghiệm tốt hơn)
+    n > 30        →  Tham lam  (ưu tiên tốc độ) hoặc ACO (ưu tiên tìm nghiệm tốt hơn)
 """)
 
 
@@ -424,7 +516,7 @@ if __name__ == "__main__":
     print_small_demo()
 
     print("=" * 65)
-    print("  BENCHMARK  (đồ thị ngẫu nhiên, edge_prob=0.3, seed=42)")
+    print(f"  BENCHMARK  (đồ thị ngẫu nhiên, p={EDGE_PROBS}, seed={SEEDS})")
     print("=" * 65)
     print()
     records, test_graphs = run_benchmark()

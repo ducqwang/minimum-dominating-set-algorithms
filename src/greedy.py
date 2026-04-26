@@ -5,8 +5,9 @@ Thuật toán Tham Lam (Greedy) cho bài toán Tập Thống Trị Tối Thiểu
   Mỗi bước chọn đỉnh chưa nằm trong tập D mà "phủ" được nhiều đỉnh
   chưa được thống trị nhất (bản thân + hàng xóm chưa bị phủ).
 
-Độ phức tạp: O(n^2)
-Kết quả: xấp xỉ, không đảm bảo tối ưu (tỉ lệ xấp xỉ ≤ ln(Δ) + 1)
+Độ phức tạp: O(n(n+m)) với cài đặt set hiện tại; đồ thị dày có thể gần O(n^3)
+Kết quả: xấp xỉ, không đảm bảo tối ưu
+(tỉ lệ xấp xỉ theo Set Cover: H(Δ+1) ≤ ln(Δ+1) + 1)
 """
 
 
