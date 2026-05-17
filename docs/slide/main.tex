@@ -46,7 +46,7 @@
 % ===== META =====
 \title[Tập thống trị tối thiểu]{Bài toán Tập Thống Trị Tối Thiểu}
 \subtitle{Thiết kế, cài đặt và đánh giá thuật toán}
-\author[Nhóm 13]{
+\author[Nhóm 5]{
   Hoàng Minh Quang -- 23001917\\
   Nguyễn Đức Quang -- 23001918\\
   Nguyễn Thành Tâm -- 23001929\\
@@ -215,6 +215,53 @@ adj = [
     \item Kiểm tra nghiệm bằng cách tính tập đỉnh đã được phủ.
   \end{itemize}
 \end{frame}
+\begin{frame}{Thuật toán tham lam}
+  \begin{block}{Ý tưởng}
+    Mỗi bước chọn đỉnh phủ được nhiều đỉnh chưa phủ nhất.
+  \end{block}
+
+  Với mỗi đỉnh $v$, định nghĩa:
+  \[
+    gain(v)=|N[v]\setminus dominated|.
+  \]
+
+  Lặp đến khi phủ hết đồ thị:
+  \begin{enumerate}
+    \item Chọn $v$ có $gain(v)$ lớn nhất.
+    \item Thêm $v$ vào $D$.
+    \item Cập nhật $dominated \gets dominated \cup N[v]$.
+  \end{enumerate}
+\end{frame}
+
+% 16
+\begin{frame}{Đánh giá tham lam}
+  \begin{columns}
+    \begin{column}{0.48\textwidth}
+      \begin{block}{Ưu điểm}
+        \begin{itemize}
+          \item Rất nhanh.
+          \item Cài đặt đơn giản.
+          \item Chạy được với đồ thị lớn.
+          \item Có liên hệ với Set Cover.
+        \end{itemize}
+      \end{block}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \begin{block}{Nhược điểm}
+        \begin{itemize}
+          \item Không đảm bảo tối ưu.
+          \item Có thể bị ảnh hưởng bởi lựa chọn cục bộ.
+          \item Kết quả phụ thuộc cấu trúc đồ thị.
+        \end{itemize}
+      \end{block}
+    \end{column}
+  \end{columns}
+
+  \vspace{0.4cm}
+  \[
+    T(n)= O(n(n+m)).
+  \]
+\end{frame}
 
 % 10
 \begin{frame}{Thuật toán vét cạn}
@@ -232,7 +279,20 @@ adj = [
     Tập hợp lệ đầu tiên được tìm thấy có kích thước nhỏ nhất vì thuật toán đã thử hết mọi kích thước nhỏ hơn.
   \end{block}
 \end{frame}
+\begin{frame}{Chứng minh đúng đắn: vét cạn}
+  \begin{block}{Tính hợp lệ}
+    Thuật toán chỉ trả về $D$ sau khi kiểm tra $\mathrm{cover}(D)=V$.
+  \end{block}
 
+  \begin{block}{Tính tối ưu}
+    Thuật toán xét các tập con theo kích thước tăng dần.
+    Nếu trả về tập kích thước $k$, mọi tập kích thước nhỏ hơn $k$ đã được xét và đều không hợp lệ.
+  \end{block}
+
+  \begin{alertblock}{Kết luận}
+    Vét cạn luôn trả về tập thống trị tối thiểu.
+  \end{alertblock}
+\end{frame}
 % 11
 \begin{frame}{Đánh giá vét cạn}
   \begin{columns}
@@ -297,7 +357,20 @@ adj = [
     Project dùng nghiệm tham lam làm $D_{\mathrm{best}}$ ban đầu để cắt nhánh sớm hơn.
   \end{block}
 \end{frame}
+\begin{frame}{Chứng minh đúng đắn: nhánh cận}
+  \begin{block}{Lập luận phân nhánh}
+    Nếu $u$ chưa được phủ, nghiệm cuối cùng bắt buộc phải chọn $u$ hoặc một láng giềng của $u$.
+    Do đó chỉ cần phân nhánh trên $N[u]$.
+  \end{block}
 
+  \begin{block}{Lập luận cắt nhánh}
+    Nếu $|D|+LB \geq |D_{\mathrm{best}}|$, mọi nghiệm trong nhánh này không thể tốt hơn nghiệm tốt nhất hiện có.
+  \end{block}
+
+  \begin{alertblock}{Kết luận}
+    Nhánh cận không bỏ sót nghiệm tối ưu và luôn trả về nghiệm tối ưu.
+  \end{alertblock}
+\end{frame}
 % 14
 \begin{frame}{Đánh giá nhánh cận}
   \begin{columns}
@@ -328,53 +401,7 @@ adj = [
 \end{frame}
 
 % 15
-\begin{frame}{Thuật toán tham lam}
-  \begin{block}{Ý tưởng}
-    Mỗi bước chọn đỉnh phủ được nhiều đỉnh chưa phủ nhất.
-  \end{block}
 
-  Với mỗi đỉnh $v$, định nghĩa:
-  \[
-    gain(v)=|N[v]\setminus dominated|.
-  \]
-
-  Lặp đến khi phủ hết đồ thị:
-  \begin{enumerate}
-    \item Chọn $v$ có $gain(v)$ lớn nhất.
-    \item Thêm $v$ vào $D$.
-    \item Cập nhật $dominated \gets dominated \cup N[v]$.
-  \end{enumerate}
-\end{frame}
-
-% 16
-\begin{frame}{Đánh giá tham lam}
-  \begin{columns}
-    \begin{column}{0.48\textwidth}
-      \begin{block}{Ưu điểm}
-        \begin{itemize}
-          \item Rất nhanh.
-          \item Cài đặt đơn giản.
-          \item Chạy được với đồ thị lớn.
-          \item Có liên hệ với Set Cover.
-        \end{itemize}
-      \end{block}
-    \end{column}
-    \begin{column}{0.48\textwidth}
-      \begin{block}{Nhược điểm}
-        \begin{itemize}
-          \item Không đảm bảo tối ưu.
-          \item Có thể bị ảnh hưởng bởi lựa chọn cục bộ.
-          \item Kết quả phụ thuộc cấu trúc đồ thị.
-        \end{itemize}
-      \end{block}
-    \end{column}
-  \end{columns}
-
-  \vspace{0.4cm}
-  \[
-    T(n)=O(n(n+m)).
-  \]
-\end{frame}
 
 % 17
 \begin{frame}{Thuật toán ACO}
@@ -417,36 +444,10 @@ adj = [
 \section{Chứng minh và phân tích}
 
 % 19
-\begin{frame}{Chứng minh đúng đắn: vét cạn}
-  \begin{block}{Tính hợp lệ}
-    Thuật toán chỉ trả về $D$ sau khi kiểm tra $\mathrm{cover}(D)=V$.
-  \end{block}
 
-  \begin{block}{Tính tối ưu}
-    Thuật toán xét các tập con theo kích thước tăng dần.
-    Nếu trả về tập kích thước $k$, mọi tập kích thước nhỏ hơn $k$ đã được xét và đều không hợp lệ.
-  \end{block}
-
-  \begin{alertblock}{Kết luận}
-    Vét cạn luôn trả về tập thống trị tối thiểu.
-  \end{alertblock}
-\end{frame}
 
 % 20
-\begin{frame}{Chứng minh đúng đắn: nhánh cận}
-  \begin{block}{Lập luận phân nhánh}
-    Nếu $u$ chưa được phủ, nghiệm cuối cùng bắt buộc phải chọn $u$ hoặc một láng giềng của $u$.
-    Do đó chỉ cần phân nhánh trên $N[u]$.
-  \end{block}
 
-  \begin{block}{Lập luận cắt nhánh}
-    Nếu $|D|+LB \geq |D_{\mathrm{best}}|$, mọi nghiệm trong nhánh này không thể tốt hơn nghiệm tốt nhất hiện có.
-  \end{block}
-
-  \begin{alertblock}{Kết luận}
-    Nhánh cận không bỏ sót nghiệm tối ưu và luôn trả về nghiệm tối ưu.
-  \end{alertblock}
-\end{frame}
 
 % 21
 \begin{frame}{Bảng so sánh lý thuyết}
